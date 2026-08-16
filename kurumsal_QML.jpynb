@@ -1,0 +1,224 @@
+{
+  "nbformat": 4,
+  "nbformat_minor": 0,
+  "metadata": {
+    "colab": {
+      "name": "Kurumsal_QML_Calisma_Kitabi.ipynb",
+      "provenance": []
+    },
+    "kernelspec": {
+      "name": "python3",
+      "display_name": "Python 3"
+    },
+    "language_info": {
+      "name": "python"
+    }
+  },
+  "cells": [
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "header-markdown"
+      },
+      "source": [
+        "# ⚛️ Kurumsal Kuantum Makine Öğrenmesi (QML) Çalışma Kitabı\n",
+        "Bu interaktif çalışma kitabı, **Salt Qiskit** mimarisi kullanılarak kurumsal düzeydeki 4 farklı problemi çözmek için tasarlanmıştır.\n",
+        "\n",
+        "**Modüller:**\n",
+        "1. Lojistik ve Optimizasyon (QAOA)\n",
+        "2. Sınıflandırma ve Kredi Riski (VQC)\n",
+        "3. Satış Tahmini (VQR)\n",
+        "4. MR Görüntü Değerlendirme (QNN)\n",
+        "\n",
+        "**Hazırlık:** Aşağıdaki hücreyi çalıştırarak sisteminize gerekli Qiskit kütüphanelerini kurunuz."
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": null,
+      "metadata": {
+        "id": "install-cell"
+      },
+      "outputs": [],
+      "source": [
+        "!pip install -q qiskit qiskit-machine-learning qiskit-algorithms qiskit-optimization matplotlib scikit-learn\n",
+        "print(\"✔ Qiskit ve QML ekosistemi başarıyla kuruldu!\")"
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "module1-markdown"
+      },
+      "source": [
+        "## 📦 Modül 1: Optimizasyon (Tedarik Zinciri ve Lojistik)\n",
+        "**Problem:** Sınırlı kaynaklarla en kısa rotayı veya en iyi portföy dağılımını bulmak (QUBO formatı).\n",
+        "**Kuantum Çözüm:** QAOA (Kuantum Yaklaşık Optimizasyon Algoritması).\n",
+        "Aşağıdaki kod, basit bir graf problemi üzerinden rotalama optimizasyonu yapar. V2 `StatevectorSampler` kullanılmaktadır."
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": null,
+      "metadata": {
+        "id": "module1-code"
+      },
+      "outputs": [],
+      "source": [
+        "import networkx as nx\n",
+        "from qiskit.circuit.library import QAOAAnsatz\n",
+        "from qiskit.quantum_info import SparsePauliOp\n",
+        "from qiskit.primitives import StatevectorSampler\n",
+        "import numpy as np\n",
+        "\n",
+        "print(\"-> Lojistik Ağı (Graph) Oluşturuluyor...\")\n",
+        "hamiltonian = SparsePauliOp.from_list([(\"ZZI\", 1.0), (\"IZZ\", 1.0), (\"ZIZ\", 1.0)])\n",
+        "\n",
+        "print(\"-> QAOA Devresi Hazırlanıyor...\")\n",
+        "qaoa = QAOAAnsatz(cost_operator=hamiltonian, reps=2)\n",
+        "qaoa.measure_all()\n",
+        "\n",
+        "sampler = StatevectorSampler()\n",
+        "initial_point = np.random.rand(qaoa.num_parameters)\n",
+        "\n",
+        "print(\"-> Kuantum Simülasyonu Başlatılıyor...\")\n",
+        "job = sampler.run([(qaoa, initial_point)])\n",
+        "result = job.result()[0]\n",
+        "\n",
+        "print(f\"✔ Optimizasyon Ölçüm Sonuçları (Bit dizileri): \\n{result.data.meas.get_counts()}\")"
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "module2-markdown"
+      },
+      "source": [
+        "## 👥 Modül 2: Sınıflandırma (Müşteri Segmentasyonu)\n",
+        "**Problem:** Müşterileri 'Riskli' veya 'Güvenli' olarak iki sınıfa ayırmak.\n",
+        "**Kuantum Çözüm:** VQC (Varyasyonel Kuantum Sınıflandırıcı).\n",
+        "Klasik müşteri verileri (yaş, gelir vb.) `ZZFeatureMap` ile kuantum bitlerine aktarılır ve `RealAmplitudes` ansatzi ile eğitilir."
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": null,
+      "metadata": {
+        "id": "module2-code"
+      },
+      "outputs": [],
+      "source": [
+        "from qiskit.circuit.library import ZZFeatureMap, RealAmplitudes\n",
+        "from qiskit_machine_learning.algorithms import VQC\n",
+        "from qiskit_algorithms.optimizers import COBYLA\n",
+        "\n",
+        "print(\"-> Sentetik Müşteri Verisi Üretiliyor (Özellikler: X, Etiketler: y)...\")\n",
+        "X = np.random.rand(20, 2) \n",
+        "y = np.array([0 if x[0] + x[1] < 1 else 1 for x in X])\n",
+        "\n",
+        "print(\"-> Kuantum Veri Kodlayıcı (FeatureMap) ve Model (Ansatz) Kuruluyor...\")\n",
+        "feature_map = ZZFeatureMap(feature_dimension=2, reps=1)\n",
+        "ansatz = RealAmplitudes(num_qubits=2, reps=2)\n",
+        "\n",
+        "vqc = VQC(\n",
+        "    feature_map=feature_map,\n",
+        "    ansatz=ansatz,\n",
+        "    optimizer=COBYLA(maxiter=10),\n",
+        ")\n",
+        "\n",
+        "print(\"-> VQC Modeli Eğitiliyor (Bu işlem birkaç saniye sürebilir)...\")\n",
+        "vqc.fit(X, y)\n",
+        "score = vqc.score(X, y)\n",
+        "print(f\"✔ Kuantum Sınıflandırma Başarısı (Accuracy): % {score * 100:.2f}\")"
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "module3-markdown"
+      },
+      "source": [
+        "## 📈 Modül 3: Satış Tahmini (Regresyon)\n",
+        "**Problem:** Geçmiş verilerdeki eğilimleri (trend) analiz ederek sürekli (continuous) değerler olan gelecekteki satış oranlarını tahmin etmek.\n",
+        "**Kuantum Çözüm:** VQR (Varyasyonel Kuantum Regresör). `Estimator` tabanlı çalışır."
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": null,
+      "metadata": {
+        "id": "module3-code"
+      },
+      "outputs": [],
+      "source": [
+        "from qiskit_machine_learning.algorithms import VQR\n",
+        "from qiskit.primitives import StatevectorEstimator\n",
+        "\n",
+        "print(\"-> Geçmiş Satış Verileri Simüle Ediliyor...\")\n",
+        "X_sales = np.linspace(0, 1, 20).reshape(-1, 1)\n",
+        "y_sales = np.sin(X_sales * np.pi).ravel() + np.random.normal(0, 0.1, 20)\n",
+        "\n",
+        "vqr = VQR(\n",
+        "    feature_map=ZZFeatureMap(feature_dimension=1),\n",
+        "    ansatz=RealAmplitudes(num_qubits=1, reps=2),\n",
+        "    optimizer=COBYLA(maxiter=15),\n",
+        "    estimator=StatevectorEstimator()\n",
+        ")\n",
+        "\n",
+        "print(\"-> Kuantum Regresyon (Tahmin) Modeli Eğitiliyor...\")\n",
+        "vqr.fit(X_sales, y_sales)\n",
+        "\n",
+        "gelecek_ay = np.array([[1.1]])\n",
+        "tahmin = vqr.predict(gelecek_ay)\n",
+        "print(f\"✔ Gelecek Ay Beklenen Satış Tahmin Değeri: {tahmin[0][0]:.3f}\")"
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "module4-markdown"
+      },
+      "source": [
+        "## 🧠 Modül 4: MR Görüntü Değerlendirme (Görüntü İşleme / QNN)\n",
+        "**Problem:** Boyutları küçültülmüş MR görüntülerinden anomali / tümör tespiti yapmak.\n",
+        "**Kuantum Çözüm:** Kuantum Sinir Ağları (QNN) ve Genlik Kodlaması (Amplitude Encoding)."
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": null,
+      "metadata": {
+        "id": "module4-code"
+      },
+      "outputs": [],
+      "source": [
+        "from qiskit_machine_learning.neural_networks import EstimatorQNN\n",
+        "from qiskit.circuit import QuantumCircuit, ParameterVector\n",
+        "\n",
+        "print(\"-> 4-Piksellik Sıkıştırılmış MR (Özellik) Vektörü Yükleniyor...\")\n",
+        "mr_features = np.random.rand(4) \n",
+        "mr_features = mr_features / np.linalg.norm(mr_features)\n",
+        "\n",
+        "qnn_circuit = QuantumCircuit(2)\n",
+        "qnn_circuit.prepare_state(mr_features)\n",
+        "\n",
+        "weights = ParameterVector('w', 2)\n",
+        "qnn_circuit.ry(weights[0], 0)\n",
+        "qnn_circuit.ry(weights[1], 1)\n",
+        "qnn_circuit.cx(0, 1)\n",
+        "\n",
+        "qnn = EstimatorQNN(\n",
+        "    circuit=qnn_circuit, \n",
+        "    estimator=StatevectorEstimator(),\n",
+        "    weight_params=weights\n",
+        ")\n",
+        "\n",
+        "print(\"-> Kuantum Sinir Ağı İleri Besleme (Forward Pass) Yapılıyor...\")\n",
+        "ornek_agirliklar = np.random.rand(qnn.num_weights)\n",
+        "qnn_cikti = qnn.forward(input_data=mr_features, weights=ornek_agirliklar)\n",
+        "\n",
+        "print(f\"✔ MR Görüntüsü Analiz Çıktısı (Anomali Skoru): {qnn_cikti[0][0]:.4f}\")"
+      ]
+    }
+  ]
+}
